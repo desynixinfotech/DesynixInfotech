@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Check, Copy } from 'lucide-react';
-import { submitContactForm } from '../services/api';
+import { db } from '../lib/firebase';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
 const Contact = () => {
     const [form, setForm] = useState({ name: '', email: '', message: '' });
@@ -10,18 +11,33 @@ const Contact = () => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         setStatus('sending');
+
         try {
-            await submitContactForm(form);
-            // Save to local storage as per requirements
-            const saved = JSON.parse(localStorage.getItem('contact_submissions') || '[]');
-            saved.push({ ...form, date: new Date().toISOString() });
-            localStorage.setItem('contact_submissions', JSON.stringify(saved));
+            // Validation
+            if (!form.name || !form.email || !form.message) {
+                throw new Error('All fields are required');
+            }
+
+            // Create document in Firestore
+            await addDoc(collection(db, "Contact Details"), {
+                name: form.name,
+                email: form.email,
+                message: form.message,
+                createdAt: serverTimestamp(),
+                source: "website"
+            });
 
             setStatus('success');
             setForm({ name: '', email: '', message: '' });
+
+            // Clear success message after 5 seconds
             setTimeout(() => setStatus('idle'), 5000);
+
         } catch (error) {
+            console.error("Error adding document: ", error);
             setStatus('error');
+            // Reset error status after 3 seconds so user can try again
+            setTimeout(() => setStatus('idle'), 3000);
         }
     };
 
